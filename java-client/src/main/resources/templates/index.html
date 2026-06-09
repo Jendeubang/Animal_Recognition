@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐾 动物识别系统</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            max-width: 700px;
+            width: 100%;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { text-align: center; color: #333; margin-bottom: 8px; font-size: 28px; }
+        .subtitle {
+            text-align: center; color: #888; margin-bottom: 30px; font-size: 14px;
+        }
+        .status-badge {
+            display: inline-block; padding: 4px 12px; border-radius: 12px;
+            font-size: 12px; font-weight: 600; margin-left: 8px;
+        }
+        .status-badge.online { background: #d4edda; color: #155724; }
+        .status-badge.offline { background: #f8d7da; color: #721c24; }
+
+        /* ── Tab 切换 ── */
+        .tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 2px solid #eee; }
+        .tab-btn {
+            flex: 1; padding: 12px; text-align: center; cursor: pointer;
+            font-size: 15px; font-weight: 600; color: #999;
+            background: none; border: none; border-bottom: 3px solid transparent;
+            transition: all 0.3s; margin-bottom: -2px;
+        }
+        .tab-btn:hover { color: #667eea; }
+        .tab-btn.active { color: #667eea; border-bottom-color: #667eea; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* ── 上传区域 ── */
+        .upload-area {
+            border: 2px dashed #ccc; border-radius: 12px; padding: 40px 20px;
+            text-align: center; cursor: pointer; transition: all 0.3s;
+            background: #fafafa; margin-bottom: 24px;
+        }
+        .upload-area:hover { border-color: #667eea; background: #f0f0ff; }
+        .upload-area.has-file { border-color: #28a745; background: #f0fff0; }
+        .upload-icon { font-size: 48px; margin-bottom: 12px; }
+        .upload-text { color: #666; font-size: 16px; }
+        .upload-hint { color: #999; font-size: 13px; margin-top: 8px; }
+        input[type="file"] { display: none; }
+        .preview { max-width: 100%; max-height: 300px; border-radius: 8px; margin-top: 12px; }
+
+        /* ── 摄像头区域 ── */
+        .camera-container {
+            border-radius: 12px; overflow: hidden; margin-bottom: 16px;
+            background: #000; position: relative; min-height: 250px;
+        }
+        .camera-container video {
+            width: 100%; display: block; transform: scaleX(-1); /* 镜像 */
+        }
+        .camera-placeholder {
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; min-height: 250px; color: #fff;
+        }
+        .camera-placeholder .icon { font-size: 48px; margin-bottom: 12px; }
+        .camera-placeholder .text { font-size: 14px; opacity: 0.7; }
+        .camera-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: none;
+        }
+        .camera-overlay .scan-frame {
+            width: 200px; height: 200px; border: 3px solid rgba(102, 126, 234, 0.6);
+            border-radius: 12px; box-shadow: 0 0 30px rgba(102, 126, 234, 0.3);
+        }
+        .camera-actions { display: flex; gap: 12px; margin-bottom: 16px; }
+        .camera-actions button { flex: 1; margin-bottom: 0; }
+
+        /* ── 连续识别开关 ── */
+        .auto-mode {
+            display: flex; align-items: center; gap: 8px;
+            justify-content: center; margin-bottom: 16px;
+        }
+        .auto-mode label { font-size: 14px; color: #666; cursor: pointer; }
+        .toggle-switch {
+            position: relative; width: 44px; height: 24px; display: inline-block;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background: #ccc; border-radius: 12px; transition: 0.3s;
+        }
+        .toggle-slider:before {
+            content: ""; position: absolute; height: 18px; width: 18px;
+            left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s;
+        }
+        .toggle-switch input:checked + .toggle-slider { background: #667eea; }
+        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(20px); }
+        .auto-indicator {
+            font-size: 12px; color: #667eea; font-weight: 600;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .btn {
+            width: 100%; padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; border: none; border-radius: 10px;
+            font-size: 18px; font-weight: 600; cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s; margin-bottom: 24px;
+        }
+        .btn:hover { transform: translateY(-2px); opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-secondary {
+            background: linear-gradient(135deg, #6c757d, #495057);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #28a745, #218838);
+        }
+
+        .error-msg {
+            background: #f8d7da; color: #721c24; padding: 12px 16px;
+            border-radius: 8px; margin-bottom: 16px;
+        }
+        .result-card {
+            background: #f8f9ff; border-radius: 12px; padding: 24px;
+            border: 1px solid #e0e0ff;
+        }
+        .result-title { font-size: 14px; color: #888; margin-bottom: 12px; }
+        .result-main { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+        .result-emoji { font-size: 40px; }
+        .result-label { font-size: 28px; font-weight: 700; color: #333; }
+        .result-label-cn { font-size: 20px; color: #667eea; margin-left: 8px; }
+        .result-confidence { font-size: 14px; color: #666; margin-top: 4px; }
+        .confidence-bar {
+            height: 8px; background: #e0e0ff; border-radius: 4px; overflow: hidden; margin-top: 8px;
+        }
+        .confidence-fill {
+            height: 100%; background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 4px; transition: width 0.5s ease;
+        }
+        .top3-table { width: 100%; margin-top: 16px; border-collapse: collapse; }
+        .top3-table th {
+            text-align: left; font-size: 12px; color: #888; padding-bottom: 8px;
+        }
+        .top3-table td {
+            padding: 6px 0; border-bottom: 1px solid #eee; font-size: 14px;
+        }
+        .top3-table tr:last-child td { border-bottom: none; }
+        .footer { text-align: center; color: #bbb; font-size: 12px; margin-top: 24px; }
+
+        /* 摄像头正在运行的呼吸提示 */
+        .recording-dot {
+            display: inline-block; width: 8px; height: 8px;
+            background: #28a745; border-radius: 50%; margin-right: 6px;
+            animation: pulse 1.5s infinite;
+        }
+
+        /* ── 历史记录 ── */
+        .history-section { margin-top: 32px; padding-top: 24px; border-top: 2px solid #eee; }
+        .history-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 16px;
+        }
+        .history-header h2 { font-size: 18px; color: #333; }
+        .history-badge {
+            background: #667eea; color: white; padding: 2px 10px;
+            border-radius: 12px; font-size: 12px;
+        }
+        .history-table { width: 100%; border-collapse: collapse; }
+        .history-table th {
+            text-align: left; font-size: 12px; color: #888;
+            padding: 8px 6px; border-bottom: 2px solid #eee;
+        }
+        .history-table td {
+            padding: 8px 6px; border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+        }
+        .history-table tr:hover td { background: #f8f9ff; }
+        .history-source {
+            display: inline-block; padding: 1px 8px; border-radius: 8px;
+            font-size: 11px; font-weight: 600;
+        }
+        .history-source.upload { background: #e8f5e9; color: #2e7d32; }
+        .history-source.camera { background: #e3f2fd; color: #1565c0; }
+        .history-empty { text-align: center; color: #bbb; padding: 30px; font-size: 14px; }
+
+        /* ── 统计数据 ── */
+        .stats-row { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+        .stat-card {
+            flex: 1; min-width: 100px; background: #f8f9ff;
+            border-radius: 10px; padding: 16px; text-align: center;
+            border: 1px solid #e0e0ff;
+        }
+        .stat-number { font-size: 28px; font-weight: 700; color: #667eea; }
+        .stat-label { font-size: 12px; color: #888; margin-top: 4px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🐾 动物识别系统</h1>
+    <p class="subtitle">
+        上传图片或使用摄像头，AI 自动识别动物种类
+        <span class="status-badge" th:classappend="${aiOnline} ? 'online' : 'offline'"
+              th:text="${aiOnline} ? 'AI 在线' : 'AI 离线'">状态</span>
+    </p>
+
+    <!-- ══════════ Tab 切换 ══════════ -->
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="upload" onclick="switchTab('upload')">📁 上传图片</button>
+        <button class="tab-btn" data-tab="camera" onclick="switchTab('camera')">📷 摄像头识别</button>
+    </div>
+
+    <!-- ══════════ Tab 1: 上传图片 ══════════ -->
+    <div class="tab-content active" id="tab-upload">
+        <form method="post" action="/predict" enctype="multipart/form-data" id="uploadForm">
+            <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                <div class="upload-icon" id="uploadIcon">📷</div>
+                <div class="upload-text" id="uploadText">点击选择动物图片</div>
+                <div class="upload-hint">支持 JPG / PNG</div>
+                <img id="preview" class="preview" style="display:none;" />
+                <input type="file" name="file" id="fileInput" accept="image/*"
+                       onchange="previewImage(event)" />
+            </div>
+            <button type="submit" class="btn" id="submitBtn">🔍 识别动物</button>
+        </form>
+    </div>
+
+    <!-- ══════════ Tab 2: 摄像头识别 ══════════ -->
+    <div class="tab-content" id="tab-camera">
+        <div class="camera-container" id="cameraContainer">
+            <video id="video" autoplay playsinline style="display:none;"></video>
+            <div class="camera-placeholder" id="cameraPlaceholder">
+                <div class="icon">📷</div>
+                <div class="text">点击下方按钮打开摄像头</div>
+            </div>
+            <div class="camera-overlay" id="cameraOverlay" style="display:none;">
+                <div class="scan-frame"></div>
+            </div>
+        </div>
+
+        <div class="camera-actions">
+            <button class="btn btn-success" id="cameraOpenBtn" onclick="openCamera()">
+                📷 打开摄像头
+            </button>
+            <button class="btn btn-danger" id="cameraCloseBtn" style="display:none;" onclick="closeCamera()">
+                ⏹ 关闭摄像头
+            </button>
+        </div>
+
+        <!-- 连续识别模式 -->
+        <div class="auto-mode" id="autoModeArea" style="display:none;">
+            <label class="toggle-switch">
+                <input type="checkbox" id="autoToggle" onchange="toggleAutoMode()">
+                <span class="toggle-slider"></span>
+            </label>
+            <label for="autoToggle">连续识别模式</label>
+            <span class="auto-indicator" id="autoIndicator" style="display:none;">
+                <span class="recording-dot"></span> 识别中...
+            </span>
+        </div>
+
+        <!-- 拍照按钮 -->
+        <button class="btn" id="captureBtn" style="display:none;" onclick="captureAndRecognize()">
+            📸 拍照识别
+        </button>
+
+        <!-- 摄像头识别结果（实时更新） -->
+        <div id="cameraResult"></div>
+    </div>
+
+    <!-- ══════════ 错误信息 ══════════ -->
+    <div th:if="${error}" class="error-msg" th:text="${error}">错误信息</div>
+
+    <!-- ══════════ 识别结果（上传模式） ══════════ -->
+    <div th:if="${result}" class="result-card">
+        <div class="result-title">🎯 识别结果</div>
+        <div th:if="${imageData}" style="text-align:center; margin-bottom:16px;">
+            <img th:src="${imageData}" style="max-width:100%; max-height:200px; border-radius:8px;" />
+        </div>
+        <div class="result-main">
+            <span class="result-emoji">🐾</span>
+            <div>
+                <span class="result-label" th:text="${result.labelEn}">dog</span>
+                <span class="result-label-cn" th:text="${result.labelCn}">狗</span>
+                <div class="result-confidence">
+                    置信度: <span th:text="${#numbers.formatDecimal(result.confidence * 100, 1, 2)}">97.23</span>%
+                </div>
+                <div class="confidence-bar">
+                    <div class="confidence-fill"
+                         th:style="|width: ${result.confidence * 100}%|"></div>
+                </div>
+            </div>
+        </div>
+        <table th:if="${result.top3}" class="top3-table">
+            <thead><tr><th>排名</th><th>英文</th><th>中文</th><th>置信度</th></tr></thead>
+            <tbody>
+                <tr th:each="item, stat : ${result.top3}">
+                    <td th:text="${stat.index + 1}">1</td>
+                    <td th:text="${item.labelEn}">dog</td>
+                    <td th:text="${item.labelCn}">狗</td>
+                    <td th:text="${#numbers.formatDecimal(item.confidence * 100, 1, 2)} + '%'">97%</td>
+                </tr>
+            </tbody>
+        </table>
+        <button onclick="window.location.href='/'" style="margin-top:16px" class="btn btn-secondary">🔙 返回</button>
+    </div>
+
+    <!-- ══════════ 历史记录（从 MySQL 读取） ══════════ -->
+    <div class="history-section">
+        <div class="history-header">
+            <h2>📋 识别记录</h2>
+            <span class="history-badge" th:if="${totalCount}">共 <span th:text="${totalCount}">0</span> 次识别</span>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-number" th:text="${totalCount}">0</div>
+                <div class="stat-label">总识别次数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" th:text="${#lists.size(recentLogs)}">0</div>
+                <div class="stat-label">最近记录</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" th:text="${aiOnline} ? '在线' : '离线'">-</div>
+                <div class="stat-label">AI 服务</div>
+            </div>
+        </div>
+
+        <!-- 最近 10 条记录表格 -->
+        <div th:if="${not #lists.isEmpty(recentLogs)}">
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>时间</th>
+                        <th>图片</th>
+                        <th>识别结果</th>
+                        <th>中文</th>
+                        <th>置信度</th>
+                        <th>来源</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="log : ${recentLogs}">
+                        <td th:text="${#temporals.format(log.createdAt, 'HH:mm:ss')}">12:30:00</td>
+                        <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                            th:text="${log.imageName}">dog.jpg</td>
+                        <td><strong th:text="${log.label}">dog</strong></td>
+                        <td th:text="${log.labelCn}">狗</td>
+                        <td th:text="${#numbers.formatDecimal(log.confidence * 100, 1, 2)} + '%'">97.23%</td>
+                        <td>
+                            <span class="history-source" th:classappend="${log.source}"
+                                  th:text="${log.source == 'camera' ? '摄像头' : '上传'}">上传</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 无记录时 -->
+        <div th:if="${#lists.isEmpty(recentLogs)}" class="history-empty">
+            🕐 还没有识别记录，上传一张图片试试
+        </div>
+    </div>
+
+    <div class="footer">后端架构: Java Spring Boot → Python FastAPI (PyTorch) | 🗄 MySQL</div>
+</div>
+
+<script>
+    /* ── Tab 切换 ── */
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + tab).classList.add('active');
+        document.querySelector(`.tab-btn[data-tab="${tab}"]`).classList.add('active');
+    }
+
+    /* ── 图片上传预览 ── */
+    function previewImage(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const preview = document.getElementById('preview');
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            preview.style.display = 'block';
+            document.getElementById('uploadIcon').style.display = 'none';
+            document.getElementById('uploadText').textContent = file.name;
+            document.getElementById('uploadArea').classList.add('has-file');
+        };
+        reader.readAsDataURL(file);
+    }
+
+    document.getElementById('uploadForm').addEventListener('submit', function() {
+        const btn = document.getElementById('submitBtn');
+        btn.textContent = '⏳ 识别中...';
+        btn.disabled = true;
+    });
+
+    /* ── 摄像头 ── */
+    let videoStream = null;
+    let autoInterval = null;
+    let autoJustStopped = false;  // 标记连续识别是否刚被关闭
+
+    async function openCamera() {
+        const video = document.getElementById('video');
+        const placeholder = document.getElementById('cameraPlaceholder');
+        const overlay = document.getElementById('cameraOverlay');
+
+        try {
+            videoStream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 640 }, height: { ideal: 480 } },
+                audio: false
+            });
+            video.srcObject = videoStream;
+            video.style.display = 'block';
+            placeholder.style.display = 'none';
+            overlay.style.display = 'flex';
+
+            document.getElementById('cameraOpenBtn').style.display = 'none';
+            document.getElementById('cameraCloseBtn').style.display = 'block';
+            document.getElementById('captureBtn').style.display = 'block';
+            document.getElementById('autoModeArea').style.display = 'flex';
+
+        } catch (err) {
+            alert('无法打开摄像头: ' + err.message + '\n\n请确保：\n1. 浏览器已授权摄像头权限\n2. 摄像头已连接\n3. 使用 HTTPS 或 localhost');
+        }
+    }
+
+    function closeCamera() {
+        if (videoStream) {
+            videoStream.getTracks().forEach(track => track.stop());
+            videoStream = null;
+        }
+        if (autoInterval) {
+            clearInterval(autoInterval);
+            autoInterval = null;
+        }
+
+        const video = document.getElementById('video');
+        video.style.display = 'none';
+        video.srcObject = null;
+        document.getElementById('cameraPlaceholder').style.display = 'flex';
+        document.getElementById('cameraOverlay').style.display = 'none';
+
+        document.getElementById('cameraOpenBtn').style.display = 'block';
+        document.getElementById('cameraCloseBtn').style.display = 'none';
+        document.getElementById('captureBtn').style.display = 'none';
+        document.getElementById('autoModeArea').style.display = 'none';
+        document.getElementById('autoToggle').checked = false;
+        document.getElementById('autoIndicator').style.display = 'none';
+        autoJustStopped = false;
+    }
+
+    async function captureAndRecognize() {
+        // 如果连续识别刚被关闭，跳过本次结果
+        if (autoJustStopped) {
+            autoJustStopped = false;
+            return;
+        }
+
+        const video = document.getElementById('video');
+        const resultDiv = document.getElementById('cameraResult');
+
+        // 拍照：将 video 帧画到 canvas 上
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        // 水平翻转（因为视频是镜像的）
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+        // 显示"识别中..."
+        resultDiv.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">⏳ 识别中...</div>';
+
+        try {
+            const res = await fetch('/api/predict/base64', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: dataUrl })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                resultDiv.innerHTML = renderResult(data, dataUrl);
+                // 摄像头识别后刷新历史记录
+                refreshHistory();
+            } else {
+                resultDiv.innerHTML = '<div class="error-msg">识别失败: ' + (data.message || '未知错误') + '</div>';
+            }
+        } catch (err) {
+            resultDiv.innerHTML = '<div class="error-msg">请求失败: ' + err.message + '</div>';
+        }
+    }
+
+    // 摄像头识别后刷新历史记录表格
+    async function refreshHistory() {
+        try {
+            const res = await fetch('/api/history?limit=10');
+            const logs = await res.json();
+            const tableBody = document.querySelector('.history-table tbody');
+            if (!tableBody) return;
+            tableBody.innerHTML = logs.map(log => {
+                const time = new Date(log.createdAt).toLocaleTimeString();
+                const source = log.source === 'camera' ? '摄像头' : '上传';
+                const sourceClass = log.source;
+                return `<tr>
+                    <td>${time}</td>
+                    <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${log.imageName}</td>
+                    <td><strong>${log.label}</strong></td>
+                    <td>${log.labelCn}</td>
+                    <td>${(log.confidence * 100).toFixed(2)}%</td>
+                    <td><span class="history-source ${sourceClass}">${source}</span></td>
+                </tr>`;
+            }).join('');
+        } catch(e) { /* 静默失败 */ }
+    }
+
+    function toggleAutoMode() {
+        const enabled = document.getElementById('autoToggle').checked;
+        const indicator = document.getElementById('autoIndicator');
+        const captureBtn = document.getElementById('captureBtn');
+
+        if (autoInterval) {
+            clearInterval(autoInterval);
+            autoInterval = null;
+        }
+
+        if (enabled) {
+            indicator.style.display = 'inline';
+            captureBtn.textContent = '⏸ 暂停连续识别';
+            // 立即识别一次，然后每 2 秒一次
+            captureAndRecognize();
+            autoInterval = setInterval(captureAndRecognize, 2000);
+        } else {
+            indicator.style.display = 'none';
+            captureBtn.textContent = '📸 拍照识别';
+            autoJustStopped = true;  // 标记已关闭
+        }
+    }
+
+    function renderResult(data, imageDataUrl) {
+        const top3Html = data.top3 ? data.top3.map((item, i) =>
+            `<tr>
+                <td>${i + 1}</td>
+                <td>${item.labelEn}</td>
+                <td>${item.labelCn}</td>
+                <td>${(item.confidence * 100).toFixed(2)}%</td>
+            </tr>`
+        ).join('') : '';
+
+        return `
+            <div class="result-card">
+                <div class="result-title">🎯 识别结果</div>
+                <div style="text-align:center;margin-bottom:16px;">
+                    <img src="${imageDataUrl}" style="max-width:100%;max-height:200px;border-radius:8px;" />
+                </div>
+                <div class="result-main">
+                    <span class="result-emoji">🐾</span>
+                    <div>
+                        <span class="result-label">${data.labelEn}</span>
+                        <span class="result-label-cn">${data.labelCn}</span>
+                        <div class="result-confidence">
+                            置信度: ${(data.confidence * 100).toFixed(2)}%
+                        </div>
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width:${(data.confidence * 100)}%"></div>
+                        </div>
+                    </div>
+                </div>
+                <table class="top3-table">
+                    <thead><tr><th>排名</th><th>英文</th><th>中文</th><th>置信度</th></tr></thead>
+                    <tbody>${top3Html}</tbody>
+                
+                </table>
+                <button onclick="switchTab('upload')" style="margin-top:16px" class="btn btn-secondary">🔙 返回</button>
+            </div>
+        `;
+    }
+</script>
+</body>
+</html>
