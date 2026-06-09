@@ -83,6 +83,52 @@ ai:
 
 ---
 
+## CI/CD 流水线
+
+### 配置
+
+流水线文件：`.github/workflows/ci.yml`（GitHub Actions）
+
+```
+触发方式: push / pull_request / 手动
+```
+
+### 流水线阶段
+
+| 阶段 | Job | 说明 |
+|:----|:----|:------|
+| 📥 拉取代码 | python-ci | `actions/checkout@v4` |
+| 🐍 设置 Python | python-ci | Python 3.10 + pip 缓存 |
+| 📦 安装依赖 | python-ci | `pip install -r requirements.txt` |
+| 🔍 语法检查 | python-ci | `py_compile` 验证语法 |
+| 🧪 执行测试 | python-ci | `pytest` 4 项测试 |
+| ☕ Java 编译 | java-ci | `mvn compile` |
+| 📦 打包归档 | java-ci | 生成 jar 并上传为 Artifact |
+| 📢 通知 | notify | 输出构建结果 |
+
+### 质量门禁
+
+- **测试失败 → 自动中止**：pytest 返回非0退出码时，后续阶段不执行
+- **语法错误阻止**：`py_compile` 失败即中止流水线
+- **构建产物归档**：每次成功构建的 jar 包可在 Actions 页面下载
+
+### 本地运行测试
+
+```bash
+# Python 测试
+pip install pytest
+python -m pytest python/test_ci.py -v --tb=short
+
+# Java 测试（需要本地 MySQL）
+cd java-client && mvn test
+```
+
+### CI/CD 徽章
+
+[![CI](https://github.com/Jendeubang/Animal_Recognition/actions/workflows/ci.yml/badge.svg)](https://github.com/Jendeubang/Animal_Recognition/actions/workflows/ci.yml)
+
+---
+
 ## 技术栈
 
 | 层 | 技术 |
